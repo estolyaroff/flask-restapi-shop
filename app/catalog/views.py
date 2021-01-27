@@ -1,12 +1,13 @@
-from flask import jsonify, Blueprint, abort
+from flask import jsonify, Blueprint, abort, request
 from app import db, api, app
-from app.catalog.models import Product, Category
+from app.catalog.models import Product, Category, User
 from flask_restful import Resource, reqparse
 import textwrap
+from flask_jwt_extended import create_access_token, jwt_required
+import datetime
 
 
 catalog = Blueprint("catalog", __name__)
-
 
 parser = reqparse.RequestParser()
 parser.add_argument("name", type=str)
@@ -20,6 +21,34 @@ parser.add_argument("category_id", type=int)
 @catalog.route("/home")
 def home():
     return "Welcome to the Catalog Home"
+
+
+class SignupApi(Resource):
+    def post(self):
+        body = request.get_json()
+        user = User(**body)
+        user.hash_password()
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except:
+            return {'error': 'Email already exists'}, 401
+        expires = datetime.timedelta(days=1)
+        access_token = create_access_token(identity=str(user.id), expires_delta=expires)
+        return {'token': access_token}, 200
+
+
+class LoginApi(Resource):
+    def post(self):
+        body = request.get_json()
+        user = User.query.filter_by(email=body.get('email')).first()
+        authorized = user.check_password(body.get('password'))
+        if not authorized:
+            return {'error': 'Email or password invalid'}, 401
+
+        expires = datetime.timedelta(days=1)
+        access_token = create_access_token(identity=str(user.id), expires_delta=expires)
+        return {'token': access_token}, 200
 
 
 # Output of the product catalog with a breakdown by pages
@@ -46,6 +75,7 @@ class CatalogView(Resource):
 
 #
 class ProductView(Resource):
+    @jwt_required
     def get(self, id=None, page=1):
         if not id:
             products = Product.query.paginate(page, 10).items
@@ -76,6 +106,7 @@ class ProductView(Resource):
             }
         return jsonify(res)
 
+    @jwt_required
     def post(self):
         args = parser.parse_args()
         name = args["name"]
@@ -94,6 +125,7 @@ class ProductView(Resource):
             "category": category_id
         }})
 
+    @jwt_required
     def put(self, id):
         args = parser.parse_args()
         name = args["name"]
@@ -108,6 +140,7 @@ class ProductView(Resource):
             return jsonify(f"Product {id} success update")
         return jsonify(f"Product {id} not found")
 
+    @jwt_required
     def delete(self, id):
         product = Product.query.filter_by(id=id)
         if product.first():
@@ -118,6 +151,7 @@ class ProductView(Resource):
 
 
 class CategoryView(Resource):
+    @jwt_required
     def get(self, id=None):
         if not id:
             categories = Category.query.all()
@@ -151,6 +185,7 @@ class CategoryView(Resource):
 
         return jsonify(res)
 
+    @jwt_required
     def post(self):
         args = parser.parse_args()
         name = args["name"]
@@ -162,6 +197,7 @@ class CategoryView(Resource):
             "name": category.name,
         }})
 
+    @jwt_required
     def put(self, id):
         args = parser.parse_args()
         name = args["name"]
@@ -174,6 +210,7 @@ class CategoryView(Resource):
             return jsonify(f"Category {id} success update")
         return jsonify(f"Category {id} not found")
 
+    @jwt_required
     def delete(self, id):
         category = Category.query.filter_by(id=id)
         if category.first():
@@ -183,17 +220,23 @@ class CategoryView(Resource):
         return jsonify(f"Category {id} not found")
 
 
+# Auth
+signup_view = SignupApi.as_view("signup")
+app.add_url_rule("/api/signup/", view_func=signup_view, methods=["POST"])
+
+# Login
+login_view = LoginApi.as_view("login")
+app.add_url_rule("/api/login/", view_func=login_view, methods=["POST"])
+
 # Catalog
 catalog_view = CatalogView.as_view("catalog_view")
 app.add_url_rule("/api/catalog/", view_func=catalog_view, methods=["GET"])
 app.add_url_rule("/api/catalog/<int:page>", view_func=catalog_view, methods=["GET"])
 
-
 # Products
 product_view = ProductView.as_view("product_view")
 app.add_url_rule("/api/product/", view_func=product_view, methods=["GET", "POST"])
 app.add_url_rule("/api/product/<int:id>", view_func=product_view, methods=["DELETE", "PUT", "GET"])
-
 
 # Category
 category_view = CategoryView.as_view("category_view")

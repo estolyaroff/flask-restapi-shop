@@ -3,14 +3,20 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api
 from flask_migrate import Migrate, MigrateCommand
 from flask_script import Manager
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
 
 
 app = Flask(__name__)
+bcrypt = Bcrypt(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////tmp/test.db"
+app.config.from_envvar("ENV_FILE_LOCATION")
 db = SQLAlchemy(app)
 api = Api(app)
-from app.catalog.views import catalog
 
+jwt = JWTManager(app)
+
+from app.catalog.views import catalog
 app.register_blueprint(catalog)
 
 migrate = Migrate(app, db)
