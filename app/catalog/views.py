@@ -1,6 +1,6 @@
-from flask import jsonify, Blueprint, abort, request
-from app import db, api, app
-from app.catalog.models import Product, Category, User
+from flask import jsonify, Blueprint, request
+from app import db, app
+from app.catalog.models import Product, Category, User, ChangeLog
 from flask_restful import Resource, reqparse
 import textwrap
 from flask_jwt_extended import create_access_token, jwt_required
@@ -17,10 +17,10 @@ parser.add_argument("price", type=float)
 parser.add_argument("category_id", type=int)
 
 
-@catalog.route("/")
-@catalog.route("/home")
-def home():
-    return "Welcome to the Catalog Home"
+# @catalog.route("/")
+# @catalog.route("/home")
+# def home():
+#     return "Welcome to the Catalog Home"
 
 
 class SignupApi(Resource):
@@ -41,11 +41,11 @@ class SignupApi(Resource):
 class LoginApi(Resource):
     def post(self):
         body = request.get_json()
-        user = User.query.filter_by(email=body.get('email')).first()
+        email = body.get("email")
+        user = User.query.filter_by(email=email).first()
         authorized = user.check_password(body.get('password'))
         if not authorized:
             return {'error': 'Email or password invalid'}, 401
-
         expires = datetime.timedelta(days=1)
         access_token = create_access_token(identity=str(user.id), expires_delta=expires)
         return {'token': access_token}, 200
@@ -73,7 +73,6 @@ class CatalogView(Resource):
         return jsonify(res)
 
 
-#
 class ProductView(Resource):
     @jwt_required
     def get(self, id=None, page=1):
@@ -95,7 +94,10 @@ class ProductView(Resource):
         else:
             product = Product.query.filter_by(id=id).first()
             if not product:
-                abort(404)
+                return {"error": "Not found"}, 404
+            log = []
+            for l in product.changelog:
+                log.append({str(l.date): l.value})
             res = {
                 "id": product.id,
                 "category": product.categories.first().name,
@@ -103,6 +105,7 @@ class ProductView(Resource):
                 "description": product.description,
                 "price": str(product.price),
                 "quantity": product.qty,
+                "changelog": log
             }
         return jsonify(res)
 
@@ -116,14 +119,18 @@ class ProductView(Resource):
         category_id = args["category_id"]
         product = Product(name=name, description=description, price=price, qty=qty)
         c = Category.query.filter_by(id=category_id).first()
+        if c is None:
+            return {"error": "Category not found"}, 404
+        l = ChangeLog(value=product.qty, product_id=product)
+        product.changelog.append(l)
         product.categories.append(c)
         db.session.add(product)
-        db.session.commit()
-        return jsonify({product.id: {
-            "name": product.name,
-            "price": product.price,
-            "category": category_id
-        }})
+        try:
+            db.session.commit()
+        except:
+            return {"error": "Not modified"}, 304
+        return {product.id: {product.name: product.description}}, 201
+
 
     @jwt_required
     def put(self, id):
@@ -131,14 +138,19 @@ class ProductView(Resource):
         name = args["name"]
         description = args["description"]
         category_id = args["category_id"]
+        qty = args["qty"]
         product = Product.query.filter_by(id=id).first()
         if product:
             product.name = name
             product.description = description
             product.categories.id = category_id
+            product.qty = qty
+            l = ChangeLog(value=product.qty, product_id=product)
+            product.changelog.append(l)
             db.session.commit()
-            return jsonify(f"Product {id} success update")
-        return jsonify(f"Product {id} not found")
+            return {'id': product.id}, 200
+
+        return {"error": "Not found"}, 404
 
     @jwt_required
     def delete(self, id):
@@ -146,8 +158,9 @@ class ProductView(Resource):
         if product.first():
             product.delete()
             db.session.commit()
-            return jsonify(f"Product {id} success del")
-        return jsonify(f"Product {id} not found")
+            return {'id': id}, 200
+
+        return {"error": "Not found"}, 404
 
 
 class CategoryView(Resource):
@@ -167,7 +180,7 @@ class CategoryView(Resource):
         else:
             category = Category.query.filter_by(id=id).first()
             if not category:
-                abort(404)
+                return {"error": "Not found"}, 404
             all_products = []
             p = category.products
             prod = {}
@@ -192,10 +205,11 @@ class CategoryView(Resource):
         description = args["description"]
         category = Category(name=name, description=description)
         db.session.add(category)
-        db.session.commit()
-        return jsonify({category.id: {
-            "name": category.name,
-        }})
+        try:
+            db.session.commit()
+        except:
+            return {"error": "Not modified"}, 304
+        return {category.id: {category.name: category.description}}, 201
 
     @jwt_required
     def put(self, id):
@@ -207,8 +221,8 @@ class CategoryView(Resource):
             category.name = name
             category.description = description
             db.session.commit()
-            return jsonify(f"Category {id} success update")
-        return jsonify(f"Category {id} not found")
+            return {'id': category.id}, 200
+        return {"error": "Not found"}, 404
 
     @jwt_required
     def delete(self, id):
@@ -216,8 +230,8 @@ class CategoryView(Resource):
         if category.first():
             category.delete()
             db.session.commit()
-            return jsonify(f"Category {id} success del")
-        return jsonify(f"Category {id} not found")
+            return {'id': id}, 200
+        return {"error": "Not found"}, 404
 
 
 # Auth

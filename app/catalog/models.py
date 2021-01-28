@@ -1,19 +1,43 @@
 from app import db
 from datetime import datetime
-from flask_bcrypt import generate_password_hash, check_password_hash
+from flask_bcrypt import (
+    generate_password_hash,
+    check_password_hash
+)
 
 
-category_product = db.Table("category_product",
-                            db.Column("category_id", db.Integer, db.ForeignKey('category.id')),
-                            db.Column("product_id", db.Integer, db.ForeignKey('product.id')),
-                            )
+category_product = db.Table(
+    "category_product",
+    db.Column(
+        "category_id",
+        db.Integer,
+        db.ForeignKey('category.id', ondelete='CASCADE')
+    ),
+    db.Column(
+        "product_id",
+        db.Integer,
+        db.ForeignKey('product.id', ondelete='CASCADE')
+    ),
+)
+#
+# product_changelog = db.Table("product_changelog",
+#                              db.Column("product_id", db.Integer, db.ForeignKey('product.id')),
+#                              db.Column("changelog_id", db.Integer, db.ForeignKey('changelog.id')),
+#                              )
 
 
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(length=30), nullable=False)
     description = db.Column(db.String(length=500))
-    products = db.relationship("Product", secondary=category_product, backref=db.backref("categories", lazy="dynamic"))
+    products = db.relationship(
+        "Product",
+        secondary=category_product,
+        backref=db.backref(
+            "categories",
+            lazy="dynamic",
+        ), passive_deletes=True
+    )
 
     def __init__(self, *args, **kwargs):
         super(Category, self).__init__(*args, **kwargs)
@@ -26,16 +50,27 @@ class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(length=50), nullable=False)
     description = db.Column(db.String(length=500))
-    image_urls = db.Column(db.Text, nullable=True)
     price = db.Column(db.DECIMAL(precision=10, scale=2, asdecimal=False))
     qty = db.Column(db.Integer)
-    db.relationship(Category)
+    changelog = db.relationship("ChangeLog", back_populates="product", passive_deletes=True)
 
     def __init__(self, *args, **kwargs):
         super(Product, self).__init__(*args, **kwargs)
 
     def __repr__(self):
         return f"<Product {self.name}>"
+
+
+class ChangeLog(db.Model):
+    id = db.Column(db.Integer(), primary_key=True)
+    date = db.Column(db.DateTime(), default=datetime.utcnow)
+    value = db.Column(db.Integer)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id', ondelete='CASCADE'))
+    product = db.relationship("Product", back_populates="changelog")
+
+    def __init__(self, value, product_id):
+        self.value = value
+        self.product = product_id
 
 
 class User(db.Model):
