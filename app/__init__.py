@@ -11,7 +11,7 @@ bcrypt = Bcrypt(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://postgres:postgres@localhost/postgres"
 app.config["SQLALCHEMY_TRACK_MODIFICATION"] = True
 # app.config["SECRET_KEY"] = True
-app.config.from_envvar("ENV_FILE_LOCATION")
+app.config.from_envvar("ENV")
 
 db = SQLAlchemy(app)
 api = Api(app)

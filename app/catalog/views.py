@@ -17,12 +17,6 @@ parser.add_argument("price", type=float)
 parser.add_argument("category_id", type=int)
 
 
-# @catalog.route("/")
-# @catalog.route("/home")
-# def home():
-#     return "Welcome to the Catalog Home"
-
-
 class SignupApi(Resource):
     def post(self):
         body = request.get_json()

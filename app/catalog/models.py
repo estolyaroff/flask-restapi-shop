@@ -19,11 +19,6 @@ category_product = db.Table(
         db.ForeignKey('product.id', ondelete='CASCADE')
     ),
 )
-#
-# product_changelog = db.Table("product_changelog",
-#                              db.Column("product_id", db.Integer, db.ForeignKey('product.id')),
-#                              db.Column("changelog_id", db.Integer, db.ForeignKey('changelog.id')),
-#                              )
 
 
 class Category(db.Model):
