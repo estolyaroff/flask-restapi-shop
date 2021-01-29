@@ -11,14 +11,10 @@ flask restapi shop
 **Create virtual environment & install requirements**
 
     virtualenv <envname> -p python3
+    
     source <envname>/bin/activate
+    
     pip install -r requirements.txt
-
-**Make migrations**
-
-    python manage.py db init
-    python manage.py db migrate
-    python manage.py db upgrade
     
 **Add dotenv to project root**
 
@@ -30,9 +26,21 @@ You should create a .env file on the project root using the following format:
 
   docker run -d --name restapi-shop -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5432:5432 postgres
 
+**Make migrations**
+
+    python manager.py db init
+    
+    python manager.py db migrate
+    
+    python manager.py db upgrade
+
 **Fill the database with test data**
   
-  python data_upload.py
+    python data_upload.py
+  
+**Run**
+
+    python run.py
 
 
 This example provides the following API structure:
